@@ -35,6 +35,7 @@ interface ProcessAccountResult {
 interface AttendanceContext {
   stats: ExecutionStats
   messageCollector: MessageCollector
+  notificationMessages: string[]
   storage: Storage
   maxRetries: number
   totalAccounts: number
@@ -177,9 +178,25 @@ export default defineTask<'success' | 'failed'>({
 
     let hasFailed = false
 
+    // 收集通知内容（用于 repository-dispatch 通知）
+    const notificationMessages: string[] = []
+
+    // 包装 messageCollector 的 notify 方法以收集通知内容
+    const originalNotify = messageCollector.notify.bind(messageCollector)
+    const originalNotifyError = messageCollector.notifyError.bind(messageCollector)
+    messageCollector.notify = (message: string) => {
+      notificationMessages.push(message)
+      originalNotify(message)
+    }
+    messageCollector.notifyError = (message: string) => {
+      notificationMessages.push(message)
+      originalNotifyError(message)
+    }
+
     const ctx = {
       stats,
       messageCollector,
+      notificationMessages,
       storage,
       maxRetries,
       totalAccounts: tokens.length,
@@ -236,6 +253,12 @@ export default defineTask<'success' | 'failed'>({
     if (stats.accounts.successful > 0 || stats.accounts.failed > 0)
       await messageCollector.push()
 
-    return { result: hasFailed ? 'failed' : 'success' }
+    // 构建通知内容字符串
+    const notificationContent = notificationMessages.join('\n')
+
+    return {
+      result: hasFailed ? 'failed' : 'success',
+      notification: notificationContent,
+    }
   },
 })

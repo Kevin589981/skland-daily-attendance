@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { appendFileSync } from 'node:fs'
 import process from 'node:process'
 import * as core from '@actions/core'
 import waitOn from 'wait-on'
@@ -72,6 +73,13 @@ try {
     const data = await response.json()
     core.info('📊 任务响应:')
     core.info(JSON.stringify(data, null, 2))
+
+    // 输出通知内容到 GitHub Actions
+    if (process.env.GITHUB_OUTPUT && data.notification) {
+      // 转义换行符以便在 GitHub Actions output 中使用
+      const escapedContent = data.notification.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+      appendFileSync(process.env.GITHUB_OUTPUT, `attendance_result=${escapedContent}\n`)
+    }
 
     // 检查任务结果
     if (data.result === 'success') {

@@ -1,3 +1,9 @@
+# ================================================================
+#  森空岛每日自动签到
+#  触发方式：
+#    1. 每天 16:00 UTC（北京时间 00:00）定时执行
+#    2. 支持手动 workflow_dispatch
+# ================================================================
 name: attendance
 
 on:
@@ -14,6 +20,10 @@ on:
         required: false
       MAX_RETRIES:
         required: false
+      REPO_ACCESS_TOKEN:
+        required: false
+      NOTIFICATION_REPO:
+        required: false
     inputs:
       repository:
         description: The repository to run the workflow on
@@ -24,6 +34,9 @@ on:
 jobs:
   attendance:
     runs-on: ubuntu-latest
+    outputs:
+      attendance_result: ${{ steps.run_attendance.outputs.attendance_result }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -46,9 +59,33 @@ jobs:
         run: pnpm install
 
       - name: Run daily attendance
+        id: run_attendance
         run: pnpm action
         env:
           SKLAND_TOKENS: ${{ secrets.SKLAND_TOKENS }}
           SKLAND_NOTIFICATION_URLS: ${{ secrets.SKLAND_NOTIFICATION_URLS }}
           SKLAND_MAX_RETRIES: ${{ secrets.MAX_RETRIES }}
           SKLAND_ANONYMOUS: ${{ secrets.SKLAND_ANONYMOUS }}
+
+  # =================================================================
+  # 通知阶段：无论签到成功 / 失败，都触发通知服务
+  # =================================================================
+  notify:
+    needs: attendance
+    runs-on: ubuntu-latest
+    if: always() && needs.attendance.result != 'cancelled' && secrets.REPO_ACCESS_TOKEN != '' && secrets.NOTIFICATION_REPO != ''
+
+    steps:
+      - name: Trigger notification service
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          repository: ${{ secrets.NOTIFICATION_REPO }}
+          event-type: send-notification
+          client-payload: |
+            {
+              "title": "森空岛签到通知",
+              "content": "${{ needs.attendance.outputs.attendance_result || '签到失败，请检查账户信息以及网络环境' }}",
+              "source": "skland",
+              "timestamp": "${{ github.event.head_commit.timestamp || github.run_id }}"
+            }
