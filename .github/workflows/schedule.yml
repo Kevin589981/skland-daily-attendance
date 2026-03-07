@@ -70,13 +70,15 @@ jobs:
   # =================================================================
   # 通知阶段：无论签到成功 / 失败，都触发通知服务
   # =================================================================
-  notify:
+notify:
     needs: attendance
     runs-on: ubuntu-latest
-    if: always() && needs.attendance.result != 'cancelled' && secrets.REPO_ACCESS_TOKEN != '' && secrets.NOTIFICATION_REPO != ''
+    if: always() && needs.attendance.result != 'cancelled' # 这里只保留基础逻辑判断
 
     steps:
       - name: Trigger notification service
+        # 将 secret 的检查放在这里，step 级别是允许访问 secrets 的
+        if: secrets.REPO_ACCESS_TOKEN != '' && secrets.NOTIFICATION_REPO != ''
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.REPO_ACCESS_TOKEN }}
