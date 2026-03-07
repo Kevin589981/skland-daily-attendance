@@ -70,7 +70,7 @@ jobs:
   # =================================================================
   # 通知阶段：无论签到成功 / 失败，都触发通知服务
   # =================================================================
-notify:
+  notify:
     needs: attendance
     runs-on: ubuntu-latest
     if: always() && needs.attendance.result != 'cancelled' # 这里只保留基础逻辑判断
